@@ -98,11 +98,12 @@ systems.
 * share your processing workflows with the community
 """
 
-requirements = ['numpy>=1.3', 'scipy>=0.7', 'networkx>=1.0', 'traits>=4.0',
-                'python-dateutil>=1.5', 'nibabel>=1.0', 'nose>=1.0']
+requirements = ['numpy(>=1.3)', 'scipy(>=0.7)', 'networkx(>=1.0)',
+                'traits(>=4.0)', 'dateutil(>=1.5)',
+                'nibabel(>=1.0)', 'nose(>=1.0)']
 for requirement in requirements:
-    exec "%s_MIN_VERSION = '%s'" % tuple([val.upper().replace('-','_') for val in
-                                          requirement.split('>=')])
+    vals = [val.upper().replace('-','_') for val in requirement.split('(>=')]
+    exec "%s_MIN_VERSION = '%s'" % (vals[0], vals[1][:-1])
 
 NAME                = 'nipype'
 MAINTAINER          = "nipype developers"

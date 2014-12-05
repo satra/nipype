@@ -118,6 +118,7 @@ def create_modelfit_workflow(name='modelfit', f_contrasts=False):
                                    ('session_info', 'session_info'),
                                    ('contrasts', 'contrasts'),
                                    ('bases', 'bases'),
+                                   ('orthogonalize', 'orthogonalize'),
                                    ('model_serial_correlations',
                                     'model_serial_correlations')]),
         (inputspec, modelestimate, [('film_threshold', 'threshold'),

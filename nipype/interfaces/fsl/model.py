@@ -86,6 +86,9 @@ this option for FILMGLS by setting autocorr_noestimate to True", mandatory=True)
 session list is None or not provided, all sessions are used. For F \
 contrasts, the condition list should contain previously defined \
 T-contrasts.")
+    orthogonalize = InputMultiPath(traits.List(traits.Str, maxlen=2),
+                                   desc=('List of condition pairs that should '
+                                         'be orthogonalized'))
 
 
 class Level1DesignOutputSpec(TraitedSpec):
@@ -149,6 +152,7 @@ class Level1Design(BaseInterface):
         # generate sections for conditions and other nuisance
         # regressors
         num_evs = [0, 0]
+        evmap = {}
         for field in ['cond', 'regress']:
             for i, cond in enumerate(runinfo[field]):
                 name = cond['name']
@@ -195,11 +199,22 @@ class Level1Design(BaseInterface):
                 ev_txt += "\n"
                 conds[name] = evfname
                 self._create_ev_file(evfname, evinfo)
+                evmap[name] = num_evs[0]
         # add ev orthogonalization
+        evpairs = {}
+        if isdefined(self.inputs.orthogonalize):
+            for pair in self.inputs.orthogonalize:
+                ev_txt += ev_ortho.substitute(c0=evmap[pair[0]],
+                                              c1=evmap[pair[1]], val=1)
+                ev_txt += "\n"
+                evpairs[evmap[pair[0]]] = evmap[pair[1]]
         for i in range(1, num_evs[0] + 1):
             for j in range(0, num_evs[0] + 1):
-                ev_txt += ev_ortho.substitute(c0=i, c1=j)
+                if i in evpairs and evpairs[i] == j:
+                    continue
+                ev_txt += ev_ortho.substitute(c0=i, c1=j, val=0)
                 ev_txt += "\n"
+
         # add contrast info to fsf file
         if isdefined(contrasts):
             contrast_header = load_template('feat_contrast_header.tcl')

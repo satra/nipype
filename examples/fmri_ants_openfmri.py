@@ -14,8 +14,8 @@ This script demonstrates how to use nipype to analyze a data set::
 
 from nipype import config
 config.enable_provenance()
-from nipype.external import six
 
+from nipype.external import six
 
 from glob import glob
 import os
@@ -23,6 +23,7 @@ import os
 import nipype.pipeline.engine as pe
 import nipype.algorithms.modelgen as model
 import nipype.algorithms.rapidart as ra
+from nipype.interfaces.base import Undefined, isdefined
 import nipype.interfaces.fsl as fsl
 import nipype.interfaces.ants as ants
 from nipype.interfaces.c3 import C3dAffineTool
@@ -291,7 +292,19 @@ def get_subjectinfo(subject_id, base_dir, task_id, model_id):
                                   'task%03d_run*' % (idx + 1)))
         run_ids.insert(idx, range(1, len(files) + 1))
     TR = np.genfromtxt(os.path.join(base_dir, 'scan_key.txt'))[1]
-    return run_ids[task_id - 1], conds[task_id - 1], TR
+    ortho_file = os.path.join(base_dir, 'models', 'model%03d' % model_id,
+                             'orthogonalize.txt')
+    ortho = Undefined
+    if os.path.exists(ortho_file):
+        with open(ortho_file, 'rt') as fp:
+            for line in fp:
+                info = line.strip().split()
+                if info[0] == 'task%03d' % task_id:
+                    if not isdefined(ortho):
+                        ortho = []
+                    ortho.append(['cond%03d' % int(info[1]) - 1,
+                                  'cond%03d' % int(info[2]) - 1])
+    return run_ids[task_id - 1], conds[task_id - 1], TR, ortho
 
 """
 Analyzes an open fmri dataset
@@ -353,7 +366,8 @@ def analyze_openfmri_dataset(data_dir, subject=None, model_id=None,
 
     subjinfo = pe.Node(niu.Function(input_names=['subject_id', 'base_dir',
                                                  'task_id', 'model_id'],
-                                    output_names=['run_id', 'conds', 'TR'],
+                                    output_names=['run_id', 'conds', 'TR',
+                                                  'orthogonalize'],
                                     function=get_subjectinfo),
                        name='subjectinfo')
     subjinfo.inputs.base_dir = data_dir
@@ -369,6 +383,7 @@ def analyze_openfmri_dataset(data_dir, subject=None, model_id=None,
                          name='datasource')
     datasource.inputs.base_directory = data_dir
     datasource.inputs.template = '*'
+
     datasource.inputs.field_template = {'anat': '%s/anatomy/highres001.nii.gz',
                                 'bold': '%s/BOLD/task%03d_r*/bold.nii.gz',
                                 'behav': ('%s/model/model%03d/onsets/task%03d_'
@@ -448,19 +463,25 @@ def analyze_openfmri_dataset(data_dir, subject=None, model_id=None,
                            name="modelspec")
     modelspec.inputs.input_units = 'secs'
 
-    def check_behav_list(behav):
-        out_behav = []
+    def check_behav_list(behav, conds):
+        from nipype.external import six
+        import numpy as np
+        num_conds = len(conds)
         if isinstance(behav, six.string_types):
             behav = [behav]
-        for val in behav:
-            if not isinstance(val, list):
-                out_behav.append([val])
-            else:
-                out_behav.append(val)
-        return out_behav
+        behav_array = np.array(behav).flatten()
+        num_elements = behav_array.shape[0]
+        return behav_array.reshape(num_elements/num_conds, num_conds).tolist()
+
+    reshape_behav = pe.Node(niu.Function(input_names=['behav', 'conds'],
+                                       output_names=['behav'],
+                                       function=check_behav_list),
+                          name='reshape_behav')
 
     wf.connect(subjinfo, 'TR', modelspec, 'time_repetition')
-    wf.connect(datasource, ('behav', check_behav_list), modelspec, 'event_files')
+    wf.connect(datasource, 'behav', reshape_behav, 'behav')
+    wf.connect(subjinfo, 'conds', reshape_behav, 'conds')
+    wf.connect(reshape_behav, 'behav', modelspec, 'event_files')
     wf.connect(subjinfo, 'TR', modelfit, 'inputspec.interscan_interval')
     wf.connect(subjinfo, 'conds', contrastgen, 'conds')
     wf.connect(datasource, 'contrasts', contrastgen, 'contrast_file')
@@ -477,6 +498,8 @@ def analyze_openfmri_dataset(data_dir, subject=None, model_id=None,
                                       ('outputspec.motion_parameters',
                                        'realignment_parameters')]),
                 (art, modelspec, [('outlier_files', 'outlier_files')]),
+                (modelspec, modelfit, [('session_info',
+                                        'inputspec.session_info')]),
                 (modelspec, modelfit, [('session_info',
                                         'inputspec.session_info')]),
                 (preproc, modelfit, [('outputspec.highpassed_files',

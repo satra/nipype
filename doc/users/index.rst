@@ -3,7 +3,7 @@
 ============
  User Guide
 ============
-	
+
 :Release: |version|
 :Date: |today|
 
@@ -37,8 +37,9 @@
    saving_workflows
    spmmcr
    mipav
+   nipypecmd
 
- 
+
 
 
 

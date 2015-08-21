@@ -24,6 +24,7 @@ def test_Registration_inputs():
     moving_mask=dict(argstr='-mMask %s',
     ),
     num_threads=dict(argstr='-threads %01d',
+    nohash=True,
     ),
     output_path=dict(argstr='-out %s',
     mandatory=True,
@@ -32,8 +33,7 @@ def test_Registration_inputs():
     parameters=dict(argstr='-p %s...',
     mandatory=True,
     ),
-    terminal_output=dict(mandatory=True,
-    nohash=True,
+    terminal_output=dict(nohash=True,
     ),
     )
     inputs = Registration.input_spec()

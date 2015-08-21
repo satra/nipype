@@ -224,7 +224,7 @@ class TOPUP(FSLCommand):
     `usage examples
     <http://fsl.fmrib.ox.ac.uk/fsl/fslwiki/topup/ExampleTopupFollowedByApplytopup>`_,
     and `exemplary config files
-    <https://github.com/ahheckel/FSL-scripts/blob/master/rsc/fsl/fsl4/topup/b02b0.cnf`_.
+    <https://github.com/ahheckel/FSL-scripts/blob/master/rsc/fsl/fsl4/topup/b02b0.cnf>`_.
 
     Examples
     --------
@@ -568,8 +568,8 @@ class EpiRegInputSpec(FSLCommandInputSpec):
                    position=-3, desc='wholehead T1 image')
     t1_brain = File(exists=True, argstr='--t1brain=%s', mandatory=True,
                     position=-2, desc='brain extracted T1 image')
-    out_base = traits.String(desc='output base name', argstr='--out=%s',
-                             position=-1)
+    out_base = traits.String("epi2struct", desc='output base name', argstr='--out=%s',
+                             position=-1, usedefault=True)
     fmap = File(exists=True, argstr='--fmap=%s',
                 desc='fieldmap image (in rad/s)')
     fmapmag = File(exists=True, argstr='--fmapmag=%s',

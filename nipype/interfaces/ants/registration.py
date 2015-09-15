@@ -7,11 +7,10 @@
    >>> os.chdir(datadir)
 """
 
-from ..base import (TraitedSpec, File, traits)
+from ..base import (TraitedSpec, File, traits, InputMultiPath)
 from .base import ANTSCommand, ANTSCommandInputSpec
 import os
-from nipype.interfaces.base import InputMultiPath
-from nipype.interfaces.traits_extension import isdefined
+from ..traits_extension import isdefined
 import numpy as np
 
 
@@ -285,13 +284,11 @@ class RegistrationInputSpec(ANTSCommandInputSpec):
     interpolation = traits.Enum(
         'Linear', 'NearestNeighbor', 'CosineWindowedSinc', 'WelchWindowedSinc',
         'HammingWindowedSinc', 'LanczosWindowedSinc', 'BSpline',
-        # 'MultiLabel',
-        # 'Gaussian',
-        # 'BSpline',
-        argstr='%s', usedefault=True)
         # MultiLabel[<sigma=imageSpacing>,<alpha=4.0>]
         # Gaussian[<sigma=imageSpacing>,<alpha=1.0>]
         # BSpline[<order=3>]
+        argstr='%s', usedefault=True)
+
     write_composite_transform = traits.Bool(
         argstr='--write-composite-transform %d',
         default=False, usedefault=True, desc='')
@@ -458,15 +455,22 @@ class Registration(ANTSCommand):
 
     >>> # Test multiple metrics per stage
     >>> reg5 = copy.deepcopy(reg)
-    >>> reg5.inputs.fixed_image = [ 'fixed1.nii', 'fixed2.nii' ]
-    >>> reg5.inputs.moving_image = [ 'moving1.nii', 'moving2.nii' ]
+    >>> reg5.inputs.fixed_image = 'fixed1.nii'
+    >>> reg5.inputs.moving_image = 'moving1.nii'
     >>> reg5.inputs.metric = ['Mattes', ['Mattes', 'CC']]
     >>> reg5.inputs.metric_weight = [1, [.5,.5]]
-    >>> reg5.inputs.radius_or_number_of_bins = [32, [32,4] ]
+    >>> reg5.inputs.radius_or_number_of_bins = [32, [32, 4] ]
     >>> reg5.inputs.sampling_strategy = ['Random', None] # use default strategy in second stage
     >>> reg5.inputs.sampling_percentage = [0.05, [0.05, 0.10]]
     >>> reg5.cmdline
-    'antsRegistration --collapse-output-transforms 0 --dimensionality 3 --initial-moving-transform [ trans.mat, 1 ] --initialize-transforms-per-stage 0 --interpolation Linear --output [ output_, output_warped_image.nii.gz ] --restore-state trans.mat --save-state trans.mat --transform Affine[ 2.0 ] --metric Mattes[ fixed1.nii, moving1.nii, 1, 32, Random, 0.05 ] --convergence [ 1500x200, 1e-08, 20 ] --smoothing-sigmas 1.0x0.0vox --shrink-factors 2x1 --use-estimate-learning-rate-once 1 --use-histogram-matching 1 --transform SyN[ 0.25, 3.0, 0.0 ] --metric Mattes[ fixed1.nii, moving1.nii, 0.5, 32, None, 0.05 ] --metric CC[ fixed2.nii, moving2.nii, 0.5, 4, None, 0.1 ] --convergence [ 100x50x30, 1e-09, 20 ] --smoothing-sigmas 2.0x1.0x0.0vox --shrink-factors 3x2x1 --use-estimate-learning-rate-once 1 --use-histogram-matching 1 --winsorize-image-intensities [ 0.0, 1.0 ]  --write-composite-transform 1'
+    'antsRegistration --collapse-output-transforms 0 --dimensionality 3 --initial-moving-transform [ trans.mat, 1 ] --initialize-transforms-per-stage 0 --interpolation Linear --output [ output_, output_warped_image.nii.gz ] --restore-state trans.mat --save-state trans.mat --transform Affine[ 2.0 ] --metric Mattes[ fixed1.nii, moving1.nii, 1, 32, Random, 0.05 ] --convergence [ 1500x200, 1e-08, 20 ] --smoothing-sigmas 1.0x0.0vox --shrink-factors 2x1 --use-estimate-learning-rate-once 1 --use-histogram-matching 1 --transform SyN[ 0.25, 3.0, 0.0 ] --metric Mattes[ fixed1.nii, moving1.nii, 0.5, 32, None, 0.05 ] --metric CC[ fixed1.nii, moving1.nii, 0.5, 4, None, 0.1 ] --convergence [ 100x50x30, 1e-09, 20 ] --smoothing-sigmas 2.0x1.0x0.0vox --shrink-factors 3x2x1 --use-estimate-learning-rate-once 1 --use-histogram-matching 1 --winsorize-image-intensities [ 0.0, 1.0 ]  --write-composite-transform 1'
+
+    >>> # Test multiple inputs
+    >>> reg6 = copy.deepcopy(reg5)
+    >>> reg6.inputs.fixed_image = ['fixed1.nii', 'fixed2.nii']
+    >>> reg6.inputs.moving_image = ['moving1.nii', 'moving2.nii']
+    >>> reg6.cmdline
+    'antsRegistration --collapse-output-transforms 0 --dimensionality 3 --initial-moving-transform [ trans.mat, 1 ] --initialize-transforms-per-stage 0 --interpolation Linear --output [ output_, output_warped_image.nii.gz ] --restore-state trans.mat --save-state trans.mat --transform Affine[ 2.0 ] --metric Mattes[ fixed1.nii, moving1.nii, 1, 32, Random, 0.05 ] --convergence [ 1500x200, 1e-08, 20 ] --smoothing-sigmas 1.0x0.0vox --shrink-factors 2x1 --use-estimate-learning-rate-once 1 --use-histogram-matching 1 --transform SyN[ 0.25, 3.0, 0.0 ] --metric Mattes[ fixed1.nii, moving1.nii, 0.5, 32, None, 0.05 ] --metric CC[ fixed2.nii, moving2.nii, 0.5, 4, None, 0.1 ] --convergence [ 100x50x30, 1e-09, 20 ] --smoothing-sigmas 2.0x1.0x0.0vox --shrink-factors 3x2x1 --use-estimate-learning-rate-once 1 --use-histogram-matching 1   --write-composite-transform 1'
     """
     DEF_SAMPLING_STRATEGY = 'None'
     """The default sampling strategy argument."""
@@ -520,12 +524,12 @@ class Registration(ANTSCommand):
             specs = list()
             for i in indexes:
                 temp = dict([(k, v[i]) for k, v in items])
-                if i > len( self.inputs.fixed_image ):
+                if len(self.inputs.fixed_image) == 1:
                     temp["fixed_image"] = self.inputs.fixed_image[0]
                 else:
                     temp["fixed_image"] = self.inputs.fixed_image[i]
 
-                if i > len( self.inputs.moving_image ):
+                if len(self.inputs.moving_image) == 1:
                     temp["moving_image"] = self.inputs.moving_image[0]
                 else:
                     temp["moving_image"] = self.inputs.moving_image[i]
@@ -610,7 +614,7 @@ class Registration(ANTSCommand):
         output_filename = None
         if not inverse:
             if isdefined(self.inputs.output_warped_image) and \
-                self.inputs.output_warped_image:
+                    self.inputs.output_warped_image:
                 output_filename = self.inputs.output_warped_image
                 if isinstance(output_filename, bool):
                     output_filename = '%s_Warped.nii.gz' % self.inputs.output_transform_prefix
@@ -619,7 +623,7 @@ class Registration(ANTSCommand):
             return output_filename
         inv_output_filename = None
         if isdefined(self.inputs.output_inverse_warped_image) and \
-            self.inputs.output_inverse_warped_image:
+                self.inputs.output_inverse_warped_image:
             inv_output_filename = self.inputs.output_inverse_warped_image
             if isinstance(inv_output_filename, bool):
                 inv_output_filename = '%s_InverseWarped.nii.gz' % self.inputs.output_transform_prefix

@@ -57,7 +57,8 @@ def create_modelfit_workflow(name='modelfit', f_contrasts=False):
                                                        'film_threshold',
                                                        'functional_data',
                                                        'bases',
-                                                       'model_serial_correlations']),
+                                                       'model_serial_correlations',
+                                                       'orthogonalize']),
                         name='inputspec')
     level1design = pe.Node(interface=fsl.Level1Design(), name="level1design")
     modelgen = pe.MapNode(interface=fsl.FEATModel(), name='modelgen',

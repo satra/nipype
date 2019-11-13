@@ -40,6 +40,7 @@ import nipype.interfaces.io as nio  # Data i/o
 import os
 import os.path as op
 from nipype.workflows.smri.freesurfer import create_tessellation_flow
+
 """
 Directories
 ===========
@@ -47,10 +48,10 @@ Directories
 Set the default directory and lookup table (LUT) paths
 """
 
-fs_dir = os.environ['FREESURFER_HOME']
-lookup_file = op.join(fs_dir, 'FreeSurferColorLUT.txt')
-subjects_dir = op.join(fs_dir, 'subjects/')
-output_dir = './tessellate_tutorial'
+fs_dir = os.environ["FREESURFER_HOME"]
+lookup_file = op.join(fs_dir, "FreeSurferColorLUT.txt")
+subjects_dir = op.join(fs_dir, "subjects/")
+output_dir = "./tessellate_tutorial"
 """
 Inputs
 ======
@@ -63,8 +64,8 @@ In you intend to view the meshes in gmsh or Blender, you should change
 the workflow creation to use stereolithographic (stl) format.
 """
 
-tessflow = create_tessellation_flow(name='tessflow', out_format='gii')
-tessflow.inputs.inputspec.subject_id = 'fsaverage'
+tessflow = create_tessellation_flow(name="tessflow", out_format="gii")
+tessflow.inputs.inputspec.subject_id = "fsaverage"
 tessflow.inputs.inputspec.subjects_dir = subjects_dir
 tessflow.inputs.inputspec.lookup_file = lookup_file
 """
@@ -74,8 +75,8 @@ Simply set cff to "False" to ignore this step.
 
 cff = True
 if cff:
-    cff = pe.Node(interface=cmtk.CFFConverter(), name='cff')
-    cff.inputs.out_file = 'Meshes.cff'
+    cff = pe.Node(interface=cmtk.CFFConverter(), name="cff")
+    cff.inputs.out_file = "Meshes.cff"
 """
 Outputs
 =======
@@ -85,8 +86,8 @@ Using regular-expression substitutions we can remove the extraneous folders gene
 """
 
 datasink = pe.Node(interface=nio.DataSink(), name="datasink")
-datasink.inputs.base_directory = 'meshes'
-datasink.inputs.regexp_substitutions = [('_smoother[\d]*/', '')]
+datasink.inputs.base_directory = "meshes"
+datasink.inputs.regexp_substitutions = [("_smoother[\d]*/", "")]
 """
 Execution
 =========
@@ -94,18 +95,16 @@ Execution
 Finally, create and run another pipeline that connects the workflow and datasink
 """
 
-tesspipe = pe.Workflow(name='tessellate_tutorial')
+tesspipe = pe.Workflow(name="tessellate_tutorial")
 tesspipe.base_dir = output_dir
-tesspipe.connect([(tessflow, datasink, [('outputspec.meshes',
-                                         '@meshes.all')])])
+tesspipe.connect([(tessflow, datasink, [("outputspec.meshes", "@meshes.all")])])
 """
 If the surfaces are to be packaged, this will connect the CFFConverter
 node to the tessellation and smoothing workflow, as well as to the datasink.
 """
 
 if cff:
-    tesspipe.connect([(tessflow, cff, [('outputspec.meshes',
-                                        'gifti_surfaces')])])
-    tesspipe.connect([(cff, datasink, [('connectome_file', '@cff')])])
+    tesspipe.connect([(tessflow, cff, [("outputspec.meshes", "gifti_surfaces")])])
+    tesspipe.connect([(cff, datasink, [("connectome_file", "@cff")])])
 
 tesspipe.run()

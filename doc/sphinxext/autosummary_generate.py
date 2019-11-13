@@ -34,14 +34,28 @@ except ImportError:
 
 def main():
     p = optparse.OptionParser(__doc__.strip())
-    p.add_option("-p", "--phantom", action="store", type="string",
-                 dest="phantom", default=None,
-                 help="Phantom import modules from a file")
-    p.add_option("-o", "--output-dir", action="store", type="string",
-                 dest="output_dir", default=None,
-                 help=("Write all output files to the given directory "
-                       "(instead of writing them as specified in the "
-                       "autosummary:: directives)"))
+    p.add_option(
+        "-p",
+        "--phantom",
+        action="store",
+        type="string",
+        dest="phantom",
+        default=None,
+        help="Phantom import modules from a file",
+    )
+    p.add_option(
+        "-o",
+        "--output-dir",
+        action="store",
+        type="string",
+        dest="output_dir",
+        default=None,
+        help=(
+            "Write all output files to the given directory "
+            "(instead of writing them as specified in the "
+            "autosummary:: directives)"
+        ),
+    )
     options, args = p.parse_args()
 
     if len(args) == 0:
@@ -72,45 +86,45 @@ def main():
             print("Failed to import '%s': %s" % (name, e))
             continue
 
-        fn = os.path.join(path, '%s.rst' % name)
+        fn = os.path.join(path, "%s.rst" % name)
 
         if os.path.exists(fn):
             # skip
             continue
 
-        f = open(fn, 'w')
+        f = open(fn, "w")
 
         try:
-            f.write('%s\n%s\n\n' % (name, '=' * len(name)))
+            f.write("%s\n%s\n\n" % (name, "=" * len(name)))
 
             if inspect.isclass(obj):
                 if issubclass(obj, Exception):
-                    f.write(format_modulemember(name, 'autoexception'))
+                    f.write(format_modulemember(name, "autoexception"))
                 else:
-                    f.write(format_modulemember(name, 'autoclass'))
+                    f.write(format_modulemember(name, "autoclass"))
             elif inspect.ismodule(obj):
-                f.write(format_modulemember(name, 'automodule'))
+                f.write(format_modulemember(name, "automodule"))
             elif inspect.ismethod(obj) or inspect.ismethoddescriptor(obj):
-                f.write(format_classmember(name, 'automethod'))
+                f.write(format_classmember(name, "automethod"))
             elif callable(obj):
-                f.write(format_modulemember(name, 'autofunction'))
-            elif hasattr(obj, '__get__'):
-                f.write(format_classmember(name, 'autoattribute'))
+                f.write(format_modulemember(name, "autofunction"))
+            elif hasattr(obj, "__get__"):
+                f.write(format_classmember(name, "autoattribute"))
             else:
-                f.write(format_modulemember(name, 'autofunction'))
+                f.write(format_modulemember(name, "autofunction"))
         finally:
             f.close()
 
 
 def format_modulemember(name, directive):
-    parts = name.split('.')
-    mod, name = '.'.join(parts[:-1]), parts[-1]
+    parts = name.split(".")
+    mod, name = ".".join(parts[:-1]), parts[-1]
     return ".. currentmodule:: %s\n\n.. %s:: %s\n" % (mod, directive, name)
 
 
 def format_classmember(name, directive):
-    parts = name.split('.')
-    mod, name = '.'.join(parts[:-2]), '.'.join(parts[-2:])
+    parts = name.split(".")
+    mod, name = ".".join(parts[:-2]), ".".join(parts[-2:])
     return ".. currentmodule:: %s\n\n.. %s:: %s\n" % (mod, directive, name)
 
 
@@ -122,7 +136,7 @@ def get_documented(filenames):
     """
     documented = {}
     for filename in filenames:
-        f = open(filename, 'r')
+        f = open(filename, "r")
         lines = f.read().splitlines()
         documented.update(get_documented_in_lines(lines, filename=filename))
         f.close()
@@ -163,12 +177,12 @@ def get_documented_in_lines(lines, module=None, filename=None):
     title_underline_re = re.compile("^[-=*_^#]{3,}\s*$")
     autodoc_re = re.compile(
         ".. auto(function|method|attribute|class|exception|module)::"
-        "\s*([A-Za-z0-9_.]+)\s*$")
-    autosummary_re = re.compile(r'^\.\.\s+autosummary::\s*')
-    module_re = re.compile(
-        r'^\.\.\s+(current)?module::\s*([a-zA-Z0-9_.]+)\s*$')
-    autosummary_item_re = re.compile(r'^\s+([_a-zA-Z][a-zA-Z0-9_.]*)\s*.*?')
-    toctree_arg_re = re.compile(r'^\s+:toctree:\s*(.*?)\s*$')
+        "\s*([A-Za-z0-9_.]+)\s*$"
+    )
+    autosummary_re = re.compile(r"^\.\.\s+autosummary::\s*")
+    module_re = re.compile(r"^\.\.\s+(current)?module::\s*([a-zA-Z0-9_.]+)\s*$")
+    autosummary_item_re = re.compile(r"^\s+([_a-zA-Z][a-zA-Z0-9_.]*)\s*.*?")
+    toctree_arg_re = re.compile(r"^\s+:toctree:\s*(.*?)\s*$")
 
     documented = {}
 
@@ -186,19 +200,19 @@ def get_documented_in_lines(lines, module=None, filename=None):
                     toctree = m.group(1)
                     continue
 
-                if line.strip().startswith(':'):
+                if line.strip().startswith(":"):
                     continue  # skip options
 
                 m = autosummary_item_re.match(line)
                 if m:
                     name = m.group(1).strip()
-                    if current_module and not name.startswith(
-                            current_module + '.'):
+                    if current_module and not name.startswith(current_module + "."):
                         name = "%s.%s" % (current_module, name)
                     documented.setdefault(name, []).append(
-                        (filename, current_title, 'autosummary', toctree))
+                        (filename, current_title, "autosummary", toctree)
+                    )
                     continue
-                if line.strip() == '':
+                if line.strip() == "":
                     continue
                 in_autosummary = False
 
@@ -212,13 +226,14 @@ def get_documented_in_lines(lines, module=None, filename=None):
                 name = m.group(2).strip()
                 if m.group(1) == "module":
                     current_module = name
-                    documented.update(get_documented_in_docstring(
-                        name, filename=filename))
-                elif current_module and not name.startswith(
-                        current_module + '.'):
+                    documented.update(
+                        get_documented_in_docstring(name, filename=filename)
+                    )
+                elif current_module and not name.startswith(current_module + "."):
                     name = "%s.%s" % (current_module, name)
                 documented.setdefault(name, []).append(
-                    (filename, current_title, "auto" + m.group(1), None))
+                    (filename, current_title, "auto" + m.group(1), None)
+                )
                 continue
 
             m = title_underline_re.match(line)

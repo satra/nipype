@@ -27,6 +27,7 @@ import nipype.interfaces.utility as util  # utility
 import nipype.pipeline.engine as pe  # pypeline engine
 import nipype.algorithms.modelgen as model  # model specification
 import os  # system functions
+
 """
 
 Preliminaries
@@ -52,7 +53,7 @@ This is a generic preprocessing workflow that can be used by different analyses
 
 """
 
-preproc = pe.Workflow(name='preproc')
+preproc = pe.Workflow(name="preproc")
 """We strongly encourage to use 4D files insteead of series of 3D for fMRI analyses
 for many reasons (cleanness and saving and filesystem inodes are among them). However,
 the the workflow presented in the SPM8 manual which this tutorial is based on
@@ -77,7 +78,7 @@ body registration of the functional data to the structural data.
 """
 
 coregister = pe.Node(interface=spm.Coregister(), name="coregister")
-coregister.inputs.jobtype = 'estimate'
+coregister.inputs.jobtype = "estimate"
 
 segment = pe.Node(interface=spm.Segment(), name="segment")
 """Uncomment the following line for faster execution
@@ -108,6 +109,7 @@ using the following function:
 def get_vox_dims(volume):
     import nibabel as nb
     from nipype.utils import NUMPY_MMAP
+
     if isinstance(volume, list):
         volume = volume[0]
     nii = nb.load(volume, mmap=NUMPY_MMAP)
@@ -122,28 +124,40 @@ voxel sizes.
 """
 
 if merge_to_4d:
-    preproc.connect([(merge, realign, [('merged_file', 'in_files')])])
+    preproc.connect([(merge, realign, [("merged_file", "in_files")])])
 
-preproc.connect([
-    (realign, coregister, [('mean_image', 'target')]),
-    (coregister, segment, [('coregistered_source', 'data')]),
-    (segment, normalize_func, [('transformation_mat', 'parameter_file')]),
-    (segment, normalize_struc,
-     [('transformation_mat', 'parameter_file'), ('modulated_input_image',
-                                                 'apply_to_files'),
-      (('modulated_input_image', get_vox_dims), 'write_voxel_sizes')]),
-    (realign, normalize_func, [('realigned_files', 'apply_to_files'),
-                               (('realigned_files', get_vox_dims),
-                                'write_voxel_sizes')]),
-    (normalize_func, smooth, [('normalized_files', 'in_files')]),
-])
+preproc.connect(
+    [
+        (realign, coregister, [("mean_image", "target")]),
+        (coregister, segment, [("coregistered_source", "data")]),
+        (segment, normalize_func, [("transformation_mat", "parameter_file")]),
+        (
+            segment,
+            normalize_struc,
+            [
+                ("transformation_mat", "parameter_file"),
+                ("modulated_input_image", "apply_to_files"),
+                (("modulated_input_image", get_vox_dims), "write_voxel_sizes"),
+            ],
+        ),
+        (
+            realign,
+            normalize_func,
+            [
+                ("realigned_files", "apply_to_files"),
+                (("realigned_files", get_vox_dims), "write_voxel_sizes"),
+            ],
+        ),
+        (normalize_func, smooth, [("normalized_files", "in_files")]),
+    ]
+)
 """
 Set up analysis workflow
 ------------------------
 
 """
 
-l1analysis = pe.Workflow(name='analysis')
+l1analysis = pe.Workflow(name="analysis")
 """Generate SPM-specific design information using
 :class:`nipype.interfaces.spm.SpecifyModel`.
 """
@@ -154,58 +168,86 @@ modelspec = pe.Node(interface=model.SpecifySPMModel(), name="modelspec")
 """
 
 level1design = pe.Node(interface=spm.Level1Design(), name="level1design")
-level1design.inputs.bases = {'hrf': {'derivs': [0, 0]}}
+level1design.inputs.bases = {"hrf": {"derivs": [0, 0]}}
 """Use :class:`nipype.interfaces.spm.EstimateModel` to determine the
 parameters of the model.
 """
 
 level1estimate = pe.Node(interface=spm.EstimateModel(), name="level1estimate")
-level1estimate.inputs.estimation_method = {'Classical': 1}
+level1estimate.inputs.estimation_method = {"Classical": 1}
 
 threshold = pe.Node(interface=spm.Threshold(), name="threshold")
 """Use :class:`nipype.interfaces.spm.EstimateContrast` to estimate the
 first level contrasts specified in a few steps above.
 """
 
-contrastestimate = pe.Node(
-    interface=spm.EstimateContrast(), name="contrastestimate")
+contrastestimate = pe.Node(interface=spm.EstimateContrast(), name="contrastestimate")
 
-l1analysis.connect([
-    (modelspec, level1design, [('session_info', 'session_info')]),
-    (level1design, level1estimate, [('spm_mat_file', 'spm_mat_file')]),
-    (level1estimate, contrastestimate,
-     [('spm_mat_file', 'spm_mat_file'), ('beta_images', 'beta_images'),
-      ('residual_image', 'residual_image')]),
-    (contrastestimate, threshold, [('spm_mat_file', 'spm_mat_file'),
-                                   ('spmT_images', 'stat_image')]),
-])
+l1analysis.connect(
+    [
+        (modelspec, level1design, [("session_info", "session_info")]),
+        (level1design, level1estimate, [("spm_mat_file", "spm_mat_file")]),
+        (
+            level1estimate,
+            contrastestimate,
+            [
+                ("spm_mat_file", "spm_mat_file"),
+                ("beta_images", "beta_images"),
+                ("residual_image", "residual_image"),
+            ],
+        ),
+        (
+            contrastestimate,
+            threshold,
+            [("spm_mat_file", "spm_mat_file"), ("spmT_images", "stat_image")],
+        ),
+    ]
+)
 """
 Preproc + Analysis pipeline
 ---------------------------
 
 """
 
-l1pipeline = pe.Workflow(name='firstlevel')
-l1pipeline.connect([(preproc, l1analysis,
-                     [('realign.realignment_parameters',
-                       'modelspec.realignment_parameters')])])
+l1pipeline = pe.Workflow(name="firstlevel")
+l1pipeline.connect(
+    [
+        (
+            preproc,
+            l1analysis,
+            [("realign.realignment_parameters", "modelspec.realignment_parameters")],
+        )
+    ]
+)
 """Pluging in `functional_runs` is a bit more complicated, because model spec expects a list of `runs`.
 Every run can be a 4D file or a list of 3D files. Therefore for 3D analysis we need a list of lists and
 to make one we need a helper function.
 """
 
 if merge_to_4d:
-    l1pipeline.connect([(preproc, l1analysis,
-                         [('smooth.smoothed_files',
-                           'modelspec.functional_runs')])])
+    l1pipeline.connect(
+        [
+            (
+                preproc,
+                l1analysis,
+                [("smooth.smoothed_files", "modelspec.functional_runs")],
+            )
+        ]
+    )
 else:
 
     def makelist(item):
         return [item]
 
-    l1pipeline.connect([(preproc, l1analysis,
-                         [(('smooth.smoothed_files', makelist),
-                           'modelspec.functional_runs')])])
+    l1pipeline.connect(
+        [
+            (
+                preproc,
+                l1analysis,
+                [(("smooth.smoothed_files", makelist), "modelspec.functional_runs")],
+            )
+        ]
+    )
 """
 Data specific components
 ------------------------
@@ -220,17 +262,18 @@ the output fields of the ``datasource`` node in the pipeline.
 """
 
 # Specify the location of the data downloaded from http://www.fil.ion.ucl.ac.uk/spm/data/auditory/
-data_dir = os.path.abspath('spm_auditory_data')
+data_dir = os.path.abspath("spm_auditory_data")
 # Specify the subject directories
-subject_list = ['M00223']
+subject_list = ["M00223"]
 # Map field names to individual subject runs.
 info = dict(
-    func=[['f', 'subject_id', 'f', 'subject_id',
-           list(range(16, 100))]],
-    struct=[['s', 'subject_id', 's', 'subject_id', 2]])
+    func=[["f", "subject_id", "f", "subject_id", list(range(16, 100))]],
+    struct=[["s", "subject_id", "s", "subject_id", 2]],
+)
 
 infosource = pe.Node(
-    interface=util.IdentityInterface(fields=['subject_id']), name="infosource")
+    interface=util.IdentityInterface(fields=["subject_id"]), name="infosource"
+)
 """Here we set up iteration over all the subjects. The following line
 is a particular example of the flexibility of the system.  The
 ``datasource`` attribute ``iterables`` tells the pipeline engine that
@@ -240,7 +283,7 @@ preprocessing and estimation will be repeated for each subject
 contained in subject_list.
 """
 
-infosource.iterables = ('subject_id', subject_list)
+infosource.iterables = ("subject_id", subject_list)
 """
 Now we create a :class:`nipype.interfaces.io.DataGrabber` object and
 fill in the information from above about the layout of our data.  The
@@ -250,11 +293,11 @@ functionality.
 """
 
 datasource = pe.Node(
-    interface=nio.DataGrabber(
-        infields=['subject_id'], outfields=['func', 'struct']),
-    name='datasource')
+    interface=nio.DataGrabber(infields=["subject_id"], outfields=["func", "struct"]),
+    name="datasource",
+)
 datasource.inputs.base_directory = data_dir
-datasource.inputs.template = '%s%s/%s%s_%03d.img'
+datasource.inputs.template = "%s%s/%s%s_%03d.img"
 datasource.inputs.template_args = info
 datasource.inputs.sort_filelist = True
 """
@@ -268,9 +311,9 @@ necessary to generate an SPM design matrix.
 """
 
 from nipype.interfaces.base import Bunch
+
 subjectinfo = [
-    Bunch(
-        conditions=['Task'], onsets=[list(range(6, 84, 12))], durations=[[6]])
+    Bunch(conditions=["Task"], onsets=[list(range(6, 84, 12))], durations=[[6]])
 ]
 """Setup the contrast structure that needs to be evaluated. This is a
 list of lists. The inner list specifies the contrasts and has the
@@ -279,13 +322,13 @@ those conditions]. The condition names must match the `names` listed
 in the `subjectinfo` function described above.
 """
 
-cont1 = ('active > rest', 'T', ['Task'], [1])
+cont1 = ("active > rest", "T", ["Task"], [1])
 contrasts = [cont1]
 
 # set up node specific inputs
 modelspecref = l1pipeline.inputs.analysis.modelspec
-modelspecref.input_units = 'scans'
-modelspecref.output_units = 'scans'
+modelspecref.input_units = "scans"
+modelspecref.output_units = "scans"
 modelspecref.time_repetition = 7
 modelspecref.high_pass_filter_cutoff = 120
 
@@ -321,17 +364,18 @@ the processing nodes.
 """
 
 level1 = pe.Workflow(name="level1")
-level1.base_dir = os.path.abspath('spm_auditory_tutorial/workingdir')
+level1.base_dir = os.path.abspath("spm_auditory_tutorial/workingdir")
 
-level1.connect([(infosource, datasource, [('subject_id', 'subject_id')]),
-                (datasource, l1pipeline, [('struct',
-                                           'preproc.coregister.source')])])
+level1.connect(
+    [
+        (infosource, datasource, [("subject_id", "subject_id")]),
+        (datasource, l1pipeline, [("struct", "preproc.coregister.source")]),
+    ]
+)
 if merge_to_4d:
-    level1.connect([(datasource, l1pipeline, [('func',
-                                               'preproc.merge.in_files')])])
+    level1.connect([(datasource, l1pipeline, [("func", "preproc.merge.in_files")])])
 else:
-    level1.connect([(datasource, l1pipeline, [('func',
-                                               'preproc.realign.in_files')])])
+    level1.connect([(datasource, l1pipeline, [("func", "preproc.realign.in_files")])])
 """
 
 Setup storage results
@@ -353,25 +397,36 @@ the mean image would be copied to that directory.
 """
 
 datasink = pe.Node(interface=nio.DataSink(), name="datasink")
-datasink.inputs.base_directory = os.path.abspath(
-    'spm_auditory_tutorial/l1output')
+datasink.inputs.base_directory = os.path.abspath("spm_auditory_tutorial/l1output")
 
 
 def getstripdir(subject_id):
     import os
+
     return os.path.join(
-        os.path.abspath('spm_auditory_tutorial/workingdir'),
-        '_subject_id_%s' % subject_id)
+        os.path.abspath("spm_auditory_tutorial/workingdir"),
+        "_subject_id_%s" % subject_id,
+    )
 
 
 # store relevant outputs from various stages of the 1st level analysis
-level1.connect([
-    (infosource, datasink, [('subject_id', 'container'),
-                            (('subject_id', getstripdir), 'strip_dir')]),
-    (l1pipeline, datasink,
-     [('analysis.contrastestimate.con_images', 'contrasts.@con'),
-      ('analysis.contrastestimate.spmT_images', 'contrasts.@T')]),
-])
+level1.connect(
+    [
+        (
+            infosource,
+            datasink,
+            [("subject_id", "container"), (("subject_id", getstripdir), "strip_dir")],
+        ),
+        (
+            l1pipeline,
+            datasink,
+            [
+                ("analysis.contrastestimate.con_images", "contrasts.@con"),
+                ("analysis.contrastestimate.spmT_images", "contrasts.@T"),
+            ],
+        ),
+    ]
+)
 """
 Execute the pipeline
 --------------------
@@ -383,6 +438,6 @@ analysis on the data the ``nipype.pipeline.engine.Pipeline.Run``
 function needs to be called.
 """
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     level1.run()
     level1.write_graph()

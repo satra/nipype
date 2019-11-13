@@ -15,12 +15,14 @@ will be fixed in a later release::
 
 # raise RuntimeWarning, 'Slicer not fully implmented'
 from nipype.interfaces.slicer import BRAINSFit, BRAINSResample
+
 """Import necessary modules from nipype."""
 
 import nipype.interfaces.io as nio  # Data i/o
 import nipype.interfaces.utility as util  # utility
 import nipype.pipeline.engine as pe  # pypeline engine
 import os  # system functions
+
 """
 
 Preliminaries
@@ -32,9 +34,9 @@ tutorial, rarely would you put this in your own code.)
 
 from nipype.utils.misc import package_check
 
-package_check('numpy', '1.3', 'tutorial1')
-package_check('scipy', '0.7', 'tutorial1')
-package_check('IPython', '0.10', 'tutorial1')
+package_check("numpy", "1.3", "tutorial1")
+package_check("scipy", "0.7", "tutorial1")
+package_check("IPython", "0.10", "tutorial1")
 """The nipype tutorial contains data for two subjects.  Subject data
 is in two subdirectories, ``s1`` and ``s2``.  Each subject directory
 contains four functional volumes: f3.nii, f5.nii, f7.nii, f10.nii. And
@@ -53,14 +55,15 @@ nifti filename through a template '%s.nii'. So 'f3' would become
 """
 
 # Specify the location of the data.
-data_dir = os.path.abspath('data')
+data_dir = os.path.abspath("data")
 # Specify the subject directories
-subject_list = ['s1', 's3']
+subject_list = ["s1", "s3"]
 # Map field names to individual subject runs.
-info = dict(func=[['subject_id', 'f3']], struct=[['subject_id', 'struct']])
+info = dict(func=[["subject_id", "f3"]], struct=[["subject_id", "struct"]])
 
 infosource = pe.Node(
-    interface=util.IdentityInterface(fields=['subject_id']), name="infosource")
+    interface=util.IdentityInterface(fields=["subject_id"]), name="infosource"
+)
 """Here we set up iteration over all the subjects. The following line
 is a particular example of the flexibility of the system.  The
 ``datasource`` attribute ``iterables`` tells the pipeline engine that
@@ -70,7 +73,7 @@ preprocessing and estimation will be repeated for each subject
 contained in subject_list.
 """
 
-infosource.iterables = ('subject_id', subject_list)
+infosource.iterables = ("subject_id", subject_list)
 """
 Preprocessing pipeline nodes
 ----------------------------
@@ -83,11 +86,11 @@ functionality.
 """
 
 datasource = pe.Node(
-    interface=nio.DataGrabber(
-        infields=['subject_id'], outfields=['func', 'struct']),
-    name='datasource')
+    interface=nio.DataGrabber(infields=["subject_id"], outfields=["func", "struct"]),
+    name="datasource",
+)
 datasource.inputs.base_directory = data_dir
-datasource.inputs.template = '%s/%s.nii'
+datasource.inputs.template = "%s/%s.nii"
 datasource.inputs.template_args = info
 datasource.inputs.sort_filelist = True
 
@@ -100,16 +103,19 @@ reslice = pe.Node(interface=BRAINSResample(), name="reslice")
 reslice.inputs.outputVolume = True
 
 pipeline = pe.Workflow(name="pipeline")
-pipeline.base_dir = os.path.abspath('slicer_tutorial/workingdir')
+pipeline.base_dir = os.path.abspath("slicer_tutorial/workingdir")
 
-pipeline.connect([(infosource, datasource, [('subject_id', 'subject_id')]),
-                  (datasource, coregister, [('func', 'movingVolume')]),
-                  (datasource, coregister,
-                   [('struct', 'fixedVolume')]), (coregister, reslice, [
-                       ('outputTransform', 'warpTransform')
-                   ]), (datasource, reslice, [('func', 'inputVolume')]),
-                  (datasource, reslice, [('struct', 'referenceVolume')])])
+pipeline.connect(
+    [
+        (infosource, datasource, [("subject_id", "subject_id")]),
+        (datasource, coregister, [("func", "movingVolume")]),
+        (datasource, coregister, [("struct", "fixedVolume")]),
+        (coregister, reslice, [("outputTransform", "warpTransform")]),
+        (datasource, reslice, [("func", "inputVolume")]),
+        (datasource, reslice, [("struct", "referenceVolume")]),
+    ]
+)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pipeline.run()
     pipeline.write_graph()

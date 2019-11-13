@@ -5,11 +5,8 @@ from ..io import SQLiteSink
 
 def test_SQLiteSink_inputs():
     input_map = dict(
-        database_file=dict(
-            extensions=None,
-            mandatory=True,
-        ),
-        table_name=dict(mandatory=True, ),
+        database_file=dict(extensions=None, mandatory=True),
+        table_name=dict(mandatory=True),
     )
     inputs = SQLiteSink.input_spec()
 

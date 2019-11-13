@@ -17,28 +17,27 @@ variable::
 """
 
 from nipype.interfaces import fsl
-fsl.FSLCommand.set_default_output_type('NIFTI')
+
+fsl.FSLCommand.set_default_output_type("NIFTI")
 
 from nipype.caching import Memory
 
 import glob
 
 # First retrieve the list of files that we want to work upon
-in_files = glob.glob('data/*/f3.nii')
+in_files = glob.glob("data/*/f3.nii")
 
 # Create a memory context
-mem = Memory('.')
+mem = Memory(".")
 
 # Apply an arbitrary (and pointless, here) threshold to the files)
 threshold = [
-    mem.cache(fsl.Threshold)(in_file=f, thresh=i)
-    for i, f in enumerate(in_files)
+    mem.cache(fsl.Threshold)(in_file=f, thresh=i) for i, f in enumerate(in_files)
 ]
 
 # Merge all these files along the time dimension
 out_merge = mem.cache(fsl.Merge)(
-    dimension="t",
-    in_files=[t.outputs.out_file for t in threshold],
+    dimension="t", in_files=[t.outputs.out_file for t in threshold]
 )
 # And finally compute the mean
 out_mean = mem.cache(fsl.MeanImage)(in_file=out_merge.outputs.merged_file)

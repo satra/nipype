@@ -28,6 +28,7 @@ import nipype.pipeline.engine as pe  # pypeline engine
 import nipype.algorithms.rapidart as ra  # artifact detection
 import nipype.algorithms.modelgen as model  # model specification
 import os  # system functions
+
 """
 
 Preliminaries
@@ -40,7 +41,7 @@ because SPM does not handle compressed NIFTI.
 """
 
 # Tell fsl to generate all output in uncompressed nifti format
-fsl.FSLCommand.set_default_output_type('NIFTI')
+fsl.FSLCommand.set_default_output_type("NIFTI")
 
 # Set the way matlab should be called
 # mlab.MatlabCommand.set_default_matlab_cmd("matlab -nodesktop -nosplash")
@@ -61,7 +62,7 @@ This is a generic preprocessing workflow that can be used by different analyses
 
 """
 
-preproc = pe.Workflow(name='preproc')
+preproc = pe.Workflow(name="preproc")
 """Use :class:`nipype.interfaces.spm.Realign` for motion correction
 and register all images to the mean image.
 """
@@ -78,8 +79,8 @@ art.inputs.use_differences = [True, False]
 art.inputs.use_norm = True
 art.inputs.norm_threshold = 1
 art.inputs.zintensity_threshold = 3
-art.inputs.mask_type = 'file'
-art.inputs.parameter_source = 'SPM'
+art.inputs.mask_type = "file"
+art.inputs.parameter_source = "SPM"
 """Skull strip structural images using
 :class:`nipype.interfaces.fsl.BET`.
 """
@@ -91,39 +92,46 @@ body registration of the functional data to the structural data.
 """
 
 coregister = pe.Node(spm.Coregister(), name="coregister")
-coregister.inputs.jobtype = 'estimate'
+coregister.inputs.jobtype = "estimate"
 """Normalize and smooth functional data using DARTEL template
 """
 
 normalize_and_smooth_func = pe.Node(
-    spm.DARTELNorm2MNI(modulate=True), name='normalize_and_smooth_func')
+    spm.DARTELNorm2MNI(modulate=True), name="normalize_and_smooth_func"
+)
 fwhmlist = [4]
-normalize_and_smooth_func.iterables = ('fwhm', fwhmlist)
+normalize_and_smooth_func.iterables = ("fwhm", fwhmlist)
 """Normalize structural data using DARTEL template
 """
 
-normalize_struct = pe.Node(
-    spm.DARTELNorm2MNI(modulate=True), name='normalize_struct')
+normalize_struct = pe.Node(spm.DARTELNorm2MNI(modulate=True), name="normalize_struct")
 normalize_struct.inputs.fwhm = 2
 
-preproc.connect([
-    (realign, coregister, [('mean_image', 'source'), ('realigned_files',
-                                                      'apply_to_files')]),
-    (coregister, normalize_and_smooth_func, [('coregistered_files',
-                                              'apply_to_files')]),
-    (normalize_struct, skullstrip, [('normalized_files', 'in_file')]),
-    (realign, art, [('realignment_parameters', 'realignment_parameters')]),
-    (normalize_and_smooth_func, art, [('normalized_files',
-                                       'realigned_files')]),
-    (skullstrip, art, [('mask_file', 'mask_file')]),
-])
+preproc.connect(
+    [
+        (
+            realign,
+            coregister,
+            [("mean_image", "source"), ("realigned_files", "apply_to_files")],
+        ),
+        (
+            coregister,
+            normalize_and_smooth_func,
+            [("coregistered_files", "apply_to_files")],
+        ),
+        (normalize_struct, skullstrip, [("normalized_files", "in_file")]),
+        (realign, art, [("realignment_parameters", "realignment_parameters")]),
+        (normalize_and_smooth_func, art, [("normalized_files", "realigned_files")]),
+        (skullstrip, art, [("mask_file", "mask_file")]),
+    ]
+)
 """
 Set up analysis workflow
 ------------------------
 
 """
 
-l1analysis = pe.Workflow(name='analysis')
+l1analysis = pe.Workflow(name="analysis")
 """Generate SPM-specific design information using
 :class:`nipype.interfaces.spm.SpecifyModel`.
 """
@@ -135,13 +143,13 @@ modelspec.inputs.concatenate_runs = True
 """
 
 level1design = pe.Node(spm.Level1Design(), name="level1design")
-level1design.inputs.bases = {'hrf': {'derivs': [0, 0]}}
+level1design.inputs.bases = {"hrf": {"derivs": [0, 0]}}
 """Use :class:`nipype.interfaces.spm.EstimateModel` to determine the
 parameters of the model.
 """
 
 level1estimate = pe.Node(spm.EstimateModel(), name="level1estimate")
-level1estimate.inputs.estimation_method = {'Classical': 1}
+level1estimate.inputs.estimation_method = {"Classical": 1}
 """Use :class:`nipype.interfaces.spm.EstimateContrast` to estimate the
 first level contrasts specified in a few steps above.
 """
@@ -168,36 +176,49 @@ slicestats = pe.Node(fsl.Slicer(), name="slicestats")
 slicestats.inputs.all_axial = True
 slicestats.inputs.image_width = 750
 
-l1analysis.connect([(modelspec, level1design,
-                     [('session_info',
-                       'session_info')]), (level1design, level1estimate,
-                                           [('spm_mat_file', 'spm_mat_file')]),
-                    (level1estimate, contrastestimate,
-                     [('spm_mat_file', 'spm_mat_file'), ('beta_images',
-                                                         'beta_images'),
-                      ('residual_image',
-                       'residual_image')]), (contrastestimate, selectcontrast,
-                                             [('spmT_images', 'inlist')]),
-                    (selectcontrast, overlaystats,
-                     [('out', 'stat_image')]), (overlaystats, slicestats,
-                                                [('out_file', 'in_file')])])
+l1analysis.connect(
+    [
+        (modelspec, level1design, [("session_info", "session_info")]),
+        (level1design, level1estimate, [("spm_mat_file", "spm_mat_file")]),
+        (
+            level1estimate,
+            contrastestimate,
+            [
+                ("spm_mat_file", "spm_mat_file"),
+                ("beta_images", "beta_images"),
+                ("residual_image", "residual_image"),
+            ],
+        ),
+        (contrastestimate, selectcontrast, [("spmT_images", "inlist")]),
+        (selectcontrast, overlaystats, [("out", "stat_image")]),
+        (overlaystats, slicestats, [("out_file", "in_file")]),
+    ]
+)
 """
 Preproc + Analysis pipeline
 ---------------------------
 
 """
 
-l1pipeline = pe.Workflow(name='firstlevel')
-l1pipeline.connect([
-    (preproc, l1analysis,
-     [('realign.realignment_parameters', 'modelspec.realignment_parameters'),
-      ('normalize_and_smooth_func.normalized_files',
-       'modelspec.functional_runs'), ('art.outlier_files',
-                                      'modelspec.outlier_files'),
-      ('skullstrip.mask_file',
-       'level1design.mask_image'), ('normalize_struct.normalized_files',
-                                    'overlaystats.background_image')]),
-])
+l1pipeline = pe.Workflow(name="firstlevel")
+l1pipeline.connect(
+    [
+        (
+            preproc,
+            l1analysis,
+            [
+                ("realign.realignment_parameters", "modelspec.realignment_parameters"),
+                (
+                    "normalize_and_smooth_func.normalized_files",
+                    "modelspec.functional_runs",
+                ),
+                ("art.outlier_files", "modelspec.outlier_files"),
+                ("skullstrip.mask_file", "level1design.mask_image"),
+                ("normalize_struct.normalized_files", "overlaystats.background_image"),
+            ],
+        )
+    ]
+)
 """
 Data specific components
 ------------------------
@@ -222,14 +243,13 @@ nifti filename through a template '%s.nii'. So 'f3' would become
 # Specify the location of the data.
 # data_dir = os.path.abspath('data')
 # Specify the subject directories
-subject_list = ['s1', 's3']
+subject_list = ["s1", "s3"]
 # Map field names to individual subject runs.
 info = dict(
-    func=[['subject_id', ['f3', 'f5', 'f7', 'f10']]],
-    struct=[['subject_id', 'struct']])
+    func=[["subject_id", ["f3", "f5", "f7", "f10"]]], struct=[["subject_id", "struct"]]
+)
 
-infosource = pe.Node(
-    niu.IdentityInterface(fields=['subject_id']), name="infosource")
+infosource = pe.Node(niu.IdentityInterface(fields=["subject_id"]), name="infosource")
 """Here we set up iteration over all the subjects. The following line
 is a particular example of the flexibility of the system.  The
 ``datasource`` attribute ``iterables`` tells the pipeline engine that
@@ -239,7 +259,7 @@ preprocessing and estimation will be repeated for each subject
 contained in subject_list.
 """
 
-infosource.iterables = ('subject_id', subject_list)
+infosource.iterables = ("subject_id", subject_list)
 """
 Now we create a :class:`nipype.interfaces.io.DataGrabber` object and
 fill in the information from above about the layout of our data.  The
@@ -248,24 +268,24 @@ and provides additional housekeeping and pipeline specific
 functionality.
 """
 
-inputnode = pe.Node(
-    niu.IdentityInterface(fields=['in_data']), name='inputnode')
+inputnode = pe.Node(niu.IdentityInterface(fields=["in_data"]), name="inputnode")
 datasource = pe.Node(
-    nio.DataGrabber(infields=['subject_id'], outfields=['func', 'struct']),
-    name='datasource')
-datasource.inputs.template = 'nipype-tutorial/data/%s/%s.nii'
+    nio.DataGrabber(infields=["subject_id"], outfields=["func", "struct"]),
+    name="datasource",
+)
+datasource.inputs.template = "nipype-tutorial/data/%s/%s.nii"
 datasource.inputs.template_args = info
 datasource.inputs.sort_filelist = True
 """We need to create a separate workflow to make the DARTEL template
 """
 
 datasource_dartel = pe.MapNode(
-    nio.DataGrabber(infields=['subject_id'], outfields=['struct']),
-    name='datasource_dartel',
-    iterfield=['subject_id'])
-datasource_dartel.inputs.template = 'nipype-tutorial/data/%s/%s.nii'
-datasource_dartel.inputs.template_args = dict(
-    struct=[['subject_id', 'struct']])
+    nio.DataGrabber(infields=["subject_id"], outfields=["struct"]),
+    name="datasource_dartel",
+    iterfield=["subject_id"],
+)
+datasource_dartel.inputs.template = "nipype-tutorial/data/%s/%s.nii"
+datasource_dartel.inputs.template_args = dict(struct=[["subject_id", "struct"]])
 datasource_dartel.inputs.sort_filelist = True
 datasource_dartel.inputs.subject_id = subject_list
 """Here we make sure that struct files have names corresponding to the subject ids.
@@ -274,12 +294,13 @@ This way we will be able to pick the right field flows later.
 
 rename_dartel = pe.MapNode(
     niu.Rename(format_string="subject_id_%(subject_id)s_struct"),
-    iterfield=['in_file', 'subject_id'],
-    name='rename_dartel')
+    iterfield=["in_file", "subject_id"],
+    name="rename_dartel",
+)
 rename_dartel.inputs.subject_id = subject_list
 rename_dartel.inputs.keep_ext = True
 
-dartel_workflow = spm_wf.create_DARTEL_template(name='dartel_workflow')
+dartel_workflow = spm_wf.create_DARTEL_template(name="dartel_workflow")
 dartel_workflow.inputs.inputspec.template_prefix = "template"
 """This function will allow to pick the right field flow for each subject
 """
@@ -287,6 +308,7 @@ dartel_workflow.inputs.inputspec.template_prefix = "template"
 
 def pickFieldFlow(dartel_flow_fields, subject_id):
     from nipype.utils.filemanip import split_filename
+
     for f in dartel_flow_fields:
         _, name, _ = split_filename(f)
         if name.find("subject_id_%s" % subject_id):
@@ -297,10 +319,12 @@ def pickFieldFlow(dartel_flow_fields, subject_id):
 
 pick_flow = pe.Node(
     niu.Function(
-        input_names=['dartel_flow_fields', 'subject_id'],
-        output_names=['dartel_flow_field'],
-        function=pickFieldFlow),
-    name="pick_flow")
+        input_names=["dartel_flow_fields", "subject_id"],
+        output_names=["dartel_flow_field"],
+        function=pickFieldFlow,
+    ),
+    name="pick_flow",
+)
 """
 Experimental paradigm specific components
 -----------------------------------------
@@ -316,21 +340,25 @@ paradigm was used for every participant.
 def subjectinfo(subject_id):
     from nipype.interfaces.base import Bunch
     from copy import deepcopy
+
     print("Subject ID: %s\n" % str(subject_id))
     output = []
-    names = ['Task-Odd', 'Task-Even']
+    names = ["Task-Odd", "Task-Even"]
     for r in range(4):
         onsets = [list(range(15, 240, 60)), list(range(45, 240, 60))]
-        output.insert(r,
-                      Bunch(
-                          conditions=names,
-                          onsets=deepcopy(onsets),
-                          durations=[[15] for s in names],
-                          amplitudes=None,
-                          tmod=None,
-                          pmod=None,
-                          regressor_names=None,
-                          regressors=None))
+        output.insert(
+            r,
+            Bunch(
+                conditions=names,
+                onsets=deepcopy(onsets),
+                durations=[[15] for s in names],
+                amplitudes=None,
+                tmod=None,
+                pmod=None,
+                regressor_names=None,
+                regressors=None,
+            ),
+        )
     return output
 
 
@@ -341,15 +369,15 @@ those conditions]. The condition names must match the `names` listed
 in the `subjectinfo` function described above.
 """
 
-cont1 = ('Task>Baseline', 'T', ['Task-Odd', 'Task-Even'], [0.5, 0.5])
-cont2 = ('Task-Odd>Task-Even', 'T', ['Task-Odd', 'Task-Even'], [1, -1])
+cont1 = ("Task>Baseline", "T", ["Task-Odd", "Task-Even"], [0.5, 0.5])
+cont2 = ("Task-Odd>Task-Even", "T", ["Task-Odd", "Task-Even"], [1, -1])
 contrasts = [cont1, cont2]
 
 # set up node specific inputs
 modelspecref = l1pipeline.inputs.analysis.modelspec
-modelspecref.input_units = 'secs'
-modelspecref.output_units = 'secs'
-modelspecref.time_repetition = 3.
+modelspecref.input_units = "secs"
+modelspecref.output_units = "secs"
+modelspecref.time_repetition = 3.0
 modelspecref.high_pass_filter_cutoff = 120
 
 l1designref = l1pipeline.inputs.analysis.level1design
@@ -359,7 +387,7 @@ l1designref.interscan_interval = modelspecref.time_repetition
 l1pipeline.inputs.analysis.contrastestimate.contrasts = contrasts
 
 # Iterate over each contrast and create report images.
-selectcontrast.iterables = ('index', [[i] for i in range(len(contrasts))])
+selectcontrast.iterables = ("index", [[i] for i in range(len(contrasts))])
 """
 Setup the pipeline
 ------------------
@@ -384,33 +412,59 @@ the processing nodes.
 """
 
 level1 = pe.Workflow(name="level1")
-level1.base_dir = os.path.abspath('spm_dartel_tutorial/workingdir')
+level1.base_dir = os.path.abspath("spm_dartel_tutorial/workingdir")
 
-level1.connect([
-    (inputnode, datasource, [('in_data', 'base_directory')]),
-    (inputnode, datasource_dartel, [('in_data', 'base_directory')]),
-    (datasource_dartel, rename_dartel, [('struct', 'in_file')]),
-    (rename_dartel, dartel_workflow, [('out_file',
-                                       'inputspec.structural_files')]),
-    (infosource, datasource, [('subject_id', 'subject_id')]),
-    (datasource, l1pipeline,
-     [('func', 'preproc.realign.in_files'), ('struct',
-                                             'preproc.coregister.target'),
-      ('struct', 'preproc.normalize_struct.apply_to_files')]),
-    (dartel_workflow, l1pipeline,
-     [('outputspec.template_file', 'preproc.normalize_struct.template_file'),
-      ('outputspec.template_file',
-       'preproc.normalize_and_smooth_func.template_file')]),
-    (infosource, pick_flow, [('subject_id', 'subject_id')]),
-    (dartel_workflow, pick_flow, [('outputspec.flow_fields',
-                                   'dartel_flow_fields')]),
-    (pick_flow, l1pipeline,
-     [('dartel_flow_field', 'preproc.normalize_struct.flowfield_files'),
-      ('dartel_flow_field',
-       'preproc.normalize_and_smooth_func.flowfield_files')]),
-    (infosource, l1pipeline, [(('subject_id', subjectinfo),
-                               'analysis.modelspec.subject_info')]),
-])
+level1.connect(
+    [
+        (inputnode, datasource, [("in_data", "base_directory")]),
+        (inputnode, datasource_dartel, [("in_data", "base_directory")]),
+        (datasource_dartel, rename_dartel, [("struct", "in_file")]),
+        (rename_dartel, dartel_workflow, [("out_file", "inputspec.structural_files")]),
+        (infosource, datasource, [("subject_id", "subject_id")]),
+        (
+            datasource,
+            l1pipeline,
+            [
+                ("func", "preproc.realign.in_files"),
+                ("struct", "preproc.coregister.target"),
+                ("struct", "preproc.normalize_struct.apply_to_files"),
+            ],
+        ),
+        (
+            dartel_workflow,
+            l1pipeline,
+            [
+                ("outputspec.template_file", "preproc.normalize_struct.template_file"),
+                (
+                    "outputspec.template_file",
+                    "preproc.normalize_and_smooth_func.template_file",
+                ),
+            ],
+        ),
+        (infosource, pick_flow, [("subject_id", "subject_id")]),
+        (
+            dartel_workflow,
+            pick_flow,
+            [("outputspec.flow_fields", "dartel_flow_fields")],
+        ),
+        (
+            pick_flow,
+            l1pipeline,
+            [
+                ("dartel_flow_field", "preproc.normalize_struct.flowfield_files"),
+                (
+                    "dartel_flow_field",
+                    "preproc.normalize_and_smooth_func.flowfield_files",
+                ),
+            ],
+        ),
+        (
+            infosource,
+            l1pipeline,
+            [(("subject_id", subjectinfo), "analysis.modelspec.subject_info")],
+        ),
+    ]
+)
 """
 
 Setup storage results
@@ -432,31 +486,44 @@ the mean image would be copied to that directory.
 """
 
 datasink = pe.Node(nio.DataSink(), name="datasink")
-datasink.inputs.base_directory = os.path.abspath(
-    'spm_dartel_tutorial/l1output')
-report = pe.Node(nio.DataSink(), name='report')
-report.inputs.base_directory = os.path.abspath('spm_dartel_tutorial/report')
+datasink.inputs.base_directory = os.path.abspath("spm_dartel_tutorial/l1output")
+report = pe.Node(nio.DataSink(), name="report")
+report.inputs.base_directory = os.path.abspath("spm_dartel_tutorial/report")
 report.inputs.parameterization = False
 
 
 def getstripdir(subject_id):
     import os
+
     return os.path.join(
-        os.path.abspath('spm_dartel_tutorial/workingdir'),
-        '_subject_id_%s' % subject_id)
+        os.path.abspath("spm_dartel_tutorial/workingdir"), "_subject_id_%s" % subject_id
+    )
 
 
 # store relevant outputs from various stages of the 1st level analysis
-level1.connect([
-    (infosource, datasink, [('subject_id', 'container'),
-                            (('subject_id', getstripdir), 'strip_dir')]),
-    (l1pipeline, datasink,
-     [('analysis.contrastestimate.con_images', 'contrasts.@con'),
-      ('analysis.contrastestimate.spmT_images', 'contrasts.@T')]),
-    (infosource, report, [('subject_id', 'container'),
-                          (('subject_id', getstripdir), 'strip_dir')]),
-    (l1pipeline, report, [('analysis.slicestats.out_file', '@report')]),
-])
+level1.connect(
+    [
+        (
+            infosource,
+            datasink,
+            [("subject_id", "container"), (("subject_id", getstripdir), "strip_dir")],
+        ),
+        (
+            l1pipeline,
+            datasink,
+            [
+                ("analysis.contrastestimate.con_images", "contrasts.@con"),
+                ("analysis.contrastestimate.spmT_images", "contrasts.@T"),
+            ],
+        ),
+        (
+            infosource,
+            report,
+            [("subject_id", "container"), (("subject_id", getstripdir), "strip_dir")],
+        ),
+        (l1pipeline, report, [("analysis.slicestats.out_file", "@report")]),
+    ]
+)
 """
 Execute the pipeline
 --------------------
@@ -468,8 +535,8 @@ analysis on the data the ``nipype.pipeline.engine.Pipeline.Run``
 function needs to be called.
 """
 
-if __name__ == '__main__':
-    level1.run(plugin_args={'n_procs': 4})
+if __name__ == "__main__":
+    level1.run(plugin_args={"n_procs": 4})
     level1.write_graph()
 """
 Setup level 2 pipeline
@@ -483,12 +550,13 @@ contrasts.
 
 # collect all the con images for each contrast.
 contrast_ids = list(range(1, len(contrasts) + 1))
-l2source = pe.Node(nio.DataGrabber(infields=['fwhm', 'con']), name="l2source")
+l2source = pe.Node(nio.DataGrabber(infields=["fwhm", "con"]), name="l2source")
 # we use .*i* to capture both .img (SPM8) and .nii (SPM12)
 l2source.inputs.template = os.path.abspath(
-    'spm_dartel_tutorial/l1output/*/con*/*/_fwhm_%d/con_%04d.*i*')
+    "spm_dartel_tutorial/l1output/*/con*/*/_fwhm_%d/con_%04d.*i*"
+)
 # iterate over all contrast images
-l2source.iterables = [('fwhm', fwhmlist), ('con', contrast_ids)]
+l2source.iterables = [("fwhm", fwhmlist), ("con", contrast_ids)]
 l2source.inputs.sort_filelist = True
 """Use :class:`nipype.interfaces.spm.OneSampleTTestDesign` to perform a
 simple statistical analysis of the contrasts from the group of
@@ -498,9 +566,9 @@ subjects (n=2 in this example).
 # setup a 1-sample t-test node
 onesamplettestdes = pe.Node(spm.OneSampleTTestDesign(), name="onesampttestdes")
 l2estimate = pe.Node(spm.EstimateModel(), name="level2estimate")
-l2estimate.inputs.estimation_method = {'Classical': 1}
+l2estimate.inputs.estimation_method = {"Classical": 1}
 l2conestimate = pe.Node(spm.EstimateContrast(), name="level2conestimate")
-cont1 = ('Group', 'T', ['mean'], [1])
+cont1 = ("Group", "T", ["mean"], [1])
 l2conestimate.inputs.contrasts = [cont1]
 l2conestimate.inputs.group_contrast = True
 """As before, we setup a pipeline to connect these two nodes (l2source
@@ -508,19 +576,27 @@ l2conestimate.inputs.group_contrast = True
 """
 
 l2pipeline = pe.Workflow(name="level2")
-l2pipeline.base_dir = os.path.abspath('spm_dartel_tutorial/l2output')
-l2pipeline.connect([
-    (l2source, onesamplettestdes, [('outfiles', 'in_files')]),
-    (onesamplettestdes, l2estimate, [('spm_mat_file', 'spm_mat_file')]),
-    (l2estimate, l2conestimate,
-     [('spm_mat_file', 'spm_mat_file'), ('beta_images', 'beta_images'),
-      ('residual_image', 'residual_image')]),
-])
+l2pipeline.base_dir = os.path.abspath("spm_dartel_tutorial/l2output")
+l2pipeline.connect(
+    [
+        (l2source, onesamplettestdes, [("outfiles", "in_files")]),
+        (onesamplettestdes, l2estimate, [("spm_mat_file", "spm_mat_file")]),
+        (
+            l2estimate,
+            l2conestimate,
+            [
+                ("spm_mat_file", "spm_mat_file"),
+                ("beta_images", "beta_images"),
+                ("residual_image", "residual_image"),
+            ],
+        ),
+    ]
+)
 """
 Execute the second level pipeline
 ---------------------------------
 
 """
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     l2pipeline.run()

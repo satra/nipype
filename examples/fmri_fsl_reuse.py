@@ -28,9 +28,12 @@ import nipype.pipeline.engine as pe  # pypeline engine
 import nipype.algorithms.modelgen as model  # model generation
 import nipype.algorithms.rapidart as ra  # artifact detection
 
-from nipype.workflows.fmri.fsl import (create_featreg_preproc,
-                                       create_modelfit_workflow,
-                                       create_fixed_effects_flow)
+from nipype.workflows.fmri.fsl import (
+    create_featreg_preproc,
+    create_modelfit_workflow,
+    create_fixed_effects_flow,
+)
+
 """
 Preliminaries
 -------------
@@ -39,11 +42,11 @@ Setup any package specific configuration. The output file format for FSL
 routines is being set to compressed NIFTI.
 """
 
-fsl.FSLCommand.set_default_output_type('NIFTI_GZ')
+fsl.FSLCommand.set_default_output_type("NIFTI_GZ")
 
-level1_workflow = pe.Workflow(name='level1flow')
+level1_workflow = pe.Workflow(name="level1flow")
 
-preproc = create_featreg_preproc(whichvol='first')
+preproc = create_featreg_preproc(whichvol="first")
 
 modelfit = create_modelfit_workflow()
 
@@ -59,26 +62,43 @@ art = pe.MapNode(
         use_norm=True,
         norm_threshold=1,
         zintensity_threshold=3,
-        parameter_source='FSL',
-        mask_type='file'),
-    iterfield=['realigned_files', 'realignment_parameters', 'mask_file'],
-    name="art")
+        parameter_source="FSL",
+        mask_type="file",
+    ),
+    iterfield=["realigned_files", "realignment_parameters", "mask_file"],
+    name="art",
+)
 
 modelspec = pe.Node(model.SpecifyModel(), name="modelspec")
 
 level1_workflow.connect(
-    [(preproc, art,
-      [('outputspec.motion_parameters', 'realignment_parameters'),
-       ('outputspec.realigned_files', 'realigned_files'), ('outputspec.mask',
-                                                           'mask_file')]),
-     (preproc, modelspec, [('outputspec.highpassed_files', 'functional_runs'),
-                           ('outputspec.motion_parameters',
-                            'realignment_parameters')]), (art, modelspec,
-                                                          [('outlier_files',
-                                                            'outlier_files')]),
-     (modelspec, modelfit, [('session_info', 'inputspec.session_info')]),
-     (preproc, modelfit, [('outputspec.highpassed_files',
-                           'inputspec.functional_data')])])
+    [
+        (
+            preproc,
+            art,
+            [
+                ("outputspec.motion_parameters", "realignment_parameters"),
+                ("outputspec.realigned_files", "realigned_files"),
+                ("outputspec.mask", "mask_file"),
+            ],
+        ),
+        (
+            preproc,
+            modelspec,
+            [
+                ("outputspec.highpassed_files", "functional_runs"),
+                ("outputspec.motion_parameters", "realignment_parameters"),
+            ],
+        ),
+        (art, modelspec, [("outlier_files", "outlier_files")]),
+        (modelspec, modelfit, [("session_info", "inputspec.session_info")]),
+        (
+            preproc,
+            modelfit,
+            [("outputspec.highpassed_files", "inputspec.functional_data")],
+        ),
+    ]
+)
 """
 Set up first-level workflow
 ---------------------------
@@ -103,14 +123,20 @@ def num_copes(files):
 pickfirst = lambda x: x[0]
 
 level1_workflow.connect(
-    [(preproc, fixed_fx, [(('outputspec.mask', pickfirst),
-                           'flameo.mask_file')]),
-     (modelfit, fixed_fx, [
-         (('outputspec.copes', sort_copes), 'inputspec.copes'),
-         ('outputspec.dof_file', 'inputspec.dof_files'),
-         (('outputspec.varcopes', sort_copes), 'inputspec.varcopes'),
-         (('outputspec.copes', num_copes), 'l2model.num_copes'),
-     ])])
+    [
+        (preproc, fixed_fx, [(("outputspec.mask", pickfirst), "flameo.mask_file")]),
+        (
+            modelfit,
+            fixed_fx,
+            [
+                (("outputspec.copes", sort_copes), "inputspec.copes"),
+                ("outputspec.dof_file", "inputspec.dof_files"),
+                (("outputspec.varcopes", sort_copes), "inputspec.varcopes"),
+                (("outputspec.copes", num_copes), "l2model.num_copes"),
+            ],
+        ),
+    ]
+)
 """
 Experiment specific components
 ------------------------------
@@ -132,18 +158,16 @@ nifti filename through a template '%s.nii'. So 'f3' would become
 
 """
 
-inputnode = pe.Node(
-    niu.IdentityInterface(fields=['in_data']), name='inputnode')
+inputnode = pe.Node(niu.IdentityInterface(fields=["in_data"]), name="inputnode")
 
 # Specify the subject directories
-subject_list = ['s1']  # , 's3']
+subject_list = ["s1"]  # , 's3']
 # Map field names to individual subject runs.
 info = dict(
-    func=[['subject_id', ['f3', 'f5', 'f7', 'f10']]],
-    struct=[['subject_id', 'struct']])
+    func=[["subject_id", ["f3", "f5", "f7", "f10"]]], struct=[["subject_id", "struct"]]
+)
 
-infosource = pe.Node(
-    niu.IdentityInterface(fields=['subject_id']), name="infosource")
+infosource = pe.Node(niu.IdentityInterface(fields=["subject_id"]), name="infosource")
 """Here we set up iteration over all the subjects. The following line
 is a particular example of the flexibility of the system.  The
 ``datasource`` attribute ``iterables`` tells the pipeline engine that
@@ -153,7 +177,7 @@ preprocessing and estimation will be repeated for each subject
 contained in subject_list.
 """
 
-infosource.iterables = ('subject_id', subject_list)
+infosource.iterables = ("subject_id", subject_list)
 """
 Now we create a :class:`nipype.interfaces.io.DataSource` object and
 fill in the information from above about the layout of our data.  The
@@ -163,9 +187,10 @@ functionality.
 """
 
 datasource = pe.Node(
-    nio.DataGrabber(infields=['subject_id'], outfields=['func', 'struct']),
-    name='datasource')
-datasource.inputs.template = 'nipype-tutorial/data/%s/%s.nii'
+    nio.DataGrabber(infields=["subject_id"], outfields=["func", "struct"]),
+    name="datasource",
+)
+datasource.inputs.template = "nipype-tutorial/data/%s/%s.nii"
 datasource.inputs.template_args = info
 datasource.inputs.sort_filelist = True
 """
@@ -173,12 +198,12 @@ Use the get_node function to retrieve an internal node by name. Then set the
 iterables on this node to perform two different extents of smoothing.
 """
 
-featinput = level1_workflow.get_node('featpreproc.inputspec')
-featinput.iterables = ('fwhm', [5., 10.])
+featinput = level1_workflow.get_node("featpreproc.inputspec")
+featinput.iterables = ("fwhm", [5.0, 10.0])
 
-hpcutoff = 120.
-TR = 3.
-featinput.inputs.highpass = hpcutoff / (2. * TR)
+hpcutoff = 120.0
+TR = 3.0
+featinput.inputs.highpass = hpcutoff / (2.0 * TR)
 """
 Setup a function that returns subject-specific information about the
 experimental paradigm. This is used by the
@@ -192,16 +217,20 @@ for every participant. Other examples of this function are available in the
 def subjectinfo(subject_id):
     from nipype.interfaces.base import Bunch
     from copy import deepcopy
+
     print("Subject ID: %s\n" % str(subject_id))
     output = []
-    names = ['Task-Odd', 'Task-Even']
+    names = ["Task-Odd", "Task-Even"]
     for r in range(4):
         onsets = [list(range(15, 240, 60)), list(range(45, 240, 60))]
-        output.insert(r,
-                      Bunch(
-                          conditions=names,
-                          onsets=deepcopy(onsets),
-                          durations=[[15] for s in names]))
+        output.insert(
+            r,
+            Bunch(
+                conditions=names,
+                onsets=deepcopy(onsets),
+                durations=[[15] for s in names],
+            ),
+        )
     return output
 
 
@@ -213,31 +242,34 @@ condition names must match the `names` listed in the `subjectinfo` function
 described above.
 """
 
-cont1 = ['Task>Baseline', 'T', ['Task-Odd', 'Task-Even'], [0.5, 0.5]]
-cont2 = ['Task-Odd>Task-Even', 'T', ['Task-Odd', 'Task-Even'], [1, -1]]
-cont3 = ['Task', 'F', [cont1, cont2]]
+cont1 = ["Task>Baseline", "T", ["Task-Odd", "Task-Even"], [0.5, 0.5]]
+cont2 = ["Task-Odd>Task-Even", "T", ["Task-Odd", "Task-Even"], [1, -1]]
+cont3 = ["Task", "F", [cont1, cont2]]
 contrasts = [cont1, cont2]
 
-modelspec.inputs.input_units = 'secs'
+modelspec.inputs.input_units = "secs"
 modelspec.inputs.time_repetition = TR
 modelspec.inputs.high_pass_filter_cutoff = hpcutoff
 
 modelfit.inputs.inputspec.interscan_interval = TR
-modelfit.inputs.inputspec.bases = {'dgamma': {'derivs': False}}
+modelfit.inputs.inputspec.bases = {"dgamma": {"derivs": False}}
 modelfit.inputs.inputspec.contrasts = contrasts
 modelfit.inputs.inputspec.model_serial_correlations = True
 modelfit.inputs.inputspec.film_threshold = 1000
 
-level1_workflow.base_dir = os.path.abspath('./fsl/workingdir')
-level1_workflow.config['execution'] = dict(
-    crashdump_dir=os.path.abspath('./fsl/crashdumps'))
+level1_workflow.base_dir = os.path.abspath("./fsl/workingdir")
+level1_workflow.config["execution"] = dict(
+    crashdump_dir=os.path.abspath("./fsl/crashdumps")
+)
 
-level1_workflow.connect([
-    (inputnode, datasource, [('in_data', 'base_directory')]),
-    (infosource, datasource, [('subject_id', 'subject_id')]),
-    (infosource, modelspec, [(('subject_id', subjectinfo), 'subject_info')]),
-    (datasource, preproc, [('func', 'inputspec.func')]),
-])
+level1_workflow.connect(
+    [
+        (inputnode, datasource, [("in_data", "base_directory")]),
+        (infosource, datasource, [("subject_id", "subject_id")]),
+        (infosource, modelspec, [(("subject_id", subjectinfo), "subject_info")]),
+        (datasource, preproc, [("func", "inputspec.func")]),
+    ]
+)
 """
 Execute the pipeline
 --------------------
@@ -248,7 +280,7 @@ generate any output. To actually run the analysis on the data the
 ``nipype.pipeline.engine.Pipeline.Run`` function needs to be called.
 """
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # level1_workflow.write_graph()
     level1_workflow.run()
     # level1_workflow.run(plugin='MultiProc', plugin_args={'n_procs':2})

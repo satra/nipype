@@ -11,13 +11,15 @@ anatomical scan.
 """
 
 import nipype.pipeline.engine as pe
-from nipype.interfaces.mipav.developer import (JistIntensityMp2rageMasking,
-                                               MedicAlgorithmSPECTRE2010)
+from nipype.interfaces.mipav.developer import (
+    JistIntensityMp2rageMasking,
+    MedicAlgorithmSPECTRE2010,
+)
 
 wf = pe.Workflow("skullstripping")
 
 mask = pe.Node(JistIntensityMp2rageMasking(), name="masking")
-folder_path = '/Users/filo/7t_trt/niftis/sub001/session_1/'
+folder_path = "/Users/filo/7t_trt/niftis/sub001/session_1/"
 mask.inputs.inSecond = folder_path + "MP2RAGE_INV2.nii.gz"
 mask.inputs.inQuantitative = folder_path + "MP2RAGE_UNI.nii.gz"
 mask.inputs.inT1weighted = folder_path + "MP2RAGE_T1.nii.gz"
@@ -30,5 +32,5 @@ skullstrip = pe.Node(MedicAlgorithmSPECTRE2010(), name="skullstrip")
 skullstrip.inputs.outStripped = True
 skullstrip.inputs.xDefaultMem = 6000
 
-wf.connect(mask, 'outMasked', skullstrip, 'inInput')
+wf.connect(mask, "outMasked", skullstrip, "inInput")
 wf.run()
